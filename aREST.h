@@ -312,7 +312,7 @@ void send_http_headers(){
 void reset_status() {
 
   if (DEBUG_MODE) {
-    #if defined(ESP8266)|| defined (ESP32)
+    #if defined(ESP8266)
       Serial.print("Memory loss before reset:");
       Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
       freeMemory = ESP.getFreeHeap();
@@ -329,7 +329,7 @@ void reset_status() {
   //memset(&buffer[0], 0, sizeof(buffer));
 
   if (DEBUG_MODE) {
-    #if defined(ESP8266)|| defined (ESP32)
+    #if defined(ESP8266)
     Serial.print("Memory loss after reset:");
     Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
     freeMemory = ESP.getFreeHeap();
@@ -464,7 +464,7 @@ void handle(ESP8266Client& client){
 }
 
 // Handle request for the ESP8266 chip
-#elif defined(ESP8266) || defined (ESP32)
+#elif defined(ESP8266)
 void handle(WiFiClient& client){
 
   if (DEBUG_MODE) {
@@ -608,6 +608,31 @@ void handle(Serial_& serial){
 
 template <typename T>
 void publish(Serial_& client, String eventName, T value) {
+
+  // Publish request
+  publish_proto(client, eventName, value);
+
+}
+
+#elif defined(SoftwareSerial_h)
+// Handle request on the Serial port
+void handle( SoftwareSerial& serial){
+
+  if (serial.available()) {
+
+    // Handle request
+    handle_proto(serial,false,1);
+
+    // Answer
+    sendBuffer(serial,25,1);
+
+    // Reset variables for the next command
+    reset_status();
+  }
+}
+
+template <typename T>
+void publish(SoftwareSerial& client, String eventName, T value) {
 
   // Publish request
   publish_proto(client, eventName, value);
@@ -860,7 +885,7 @@ void process(char c){
   if ((c == '/' || c == '\r') && state == 'u') {
 
       if (DEBUG_MODE) {
-        // #if defined(ESP8266)|| defined (ESP32)
+        // #if defined(ESP8266)
         // Serial.print("Memory loss:");
         // Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
         // freeMemory = ESP.getFreeHeap();
@@ -1082,7 +1107,7 @@ bool send_command(bool headers) {
 
    if (DEBUG_MODE) {
 
-     #if defined(ESP8266)|| defined (ESP32)
+     #if defined(ESP8266)
      Serial.print("Memory loss:");
      Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
      freeMemory = ESP.getFreeHeap();
@@ -1352,7 +1377,7 @@ bool send_command(bool headers) {
    }
 
    if (DEBUG_MODE) {
-     #if defined(ESP8266)|| defined (ESP32)
+     #if defined(ESP8266)
      Serial.print("Memory loss:");
      Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
      freeMemory = ESP.getFreeHeap();
@@ -1630,7 +1655,7 @@ void removeLastBufferChar() {
 void addToBuffer(char * toAdd){
 
   if (DEBUG_MODE) {
-    #if defined(ESP8266)|| defined (ESP32)
+    #if defined(ESP8266)
     Serial.print("Memory loss:");
     Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
     freeMemory = ESP.getFreeHeap();
@@ -1639,11 +1664,10 @@ void addToBuffer(char * toAdd){
     Serial.println(toAdd);
   }
 
-  for (int i = 0;
-       i < strlen(toAdd) && index < OUTPUT_BUFFER_SIZE;
-       i++, index++) {
-    buffer[index] = toAdd[i];
+  for (int i = 0; i < strlen(toAdd); i++){
+    buffer[index+i] = toAdd[i];
   }
+  index = index + strlen(toAdd);
 }
 
 // Add to output buffer
@@ -1651,7 +1675,7 @@ void addToBuffer(char * toAdd){
 void addToBuffer(String toAdd){
 
   if (DEBUG_MODE) {
-    #if defined(ESP8266)|| defined (ESP32)
+    #if defined(ESP8266)
     Serial.print("Memory loss:");
     Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
     freeMemory = ESP.getFreeHeap();
@@ -1660,9 +1684,10 @@ void addToBuffer(String toAdd){
     Serial.println(toAdd);
   }
 
-  for (int i = 0; i < toAdd.length() && index < OUTPUT_BUFFER_SIZE; i++, index++){
-    buffer[index] = toAdd[i];
+  for (int i = 0; i < toAdd.length(); i++){
+    buffer[index+i] = toAdd[i];
   }
+  index = index + toAdd.length();
 }
 #endif
 
@@ -1699,7 +1724,7 @@ void addToBuffer(float toAdd){
 void addToBuffer(const __FlashStringHelper *toAdd){
 
   if (DEBUG_MODE) {
-    #if defined(ESP8266)|| defined (ESP32)
+    #if defined(ESP8266)
     Serial.print("Memory loss:");
     Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
     freeMemory = ESP.getFreeHeap();
@@ -1712,18 +1737,20 @@ void addToBuffer(const __FlashStringHelper *toAdd){
 
   PGM_P p = reinterpret_cast<PGM_P>(toAdd);
 
-  for ( unsigned char c = pgm_read_byte(p++);
-        c != 0 && index < OUTPUT_BUFFER_SIZE;
-        c = pgm_read_byte(p++), index++) {
-    buffer[index] = c;
+  while (1) {
+    unsigned char c = pgm_read_byte(p++);
+    if (c == 0) break;
+    buffer[index + idx] = c;
+    idx++;
   }
+  index = index + idx;
 }
 
 template <typename T>
 void sendBuffer(T& client, uint8_t chunkSize, uint8_t wait_time) {
 
   if (DEBUG_MODE) {
-    #if defined(ESP8266)|| defined (ESP32)
+    #if defined(ESP8266)
     Serial.print("Memory loss before sending:");
     Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
     freeMemory = ESP.getFreeHeap();
@@ -1767,7 +1794,7 @@ void sendBuffer(T& client, uint8_t chunkSize, uint8_t wait_time) {
   }
 
   if (DEBUG_MODE) {
-    #if defined(ESP8266) || defined (ESP32)
+    #if defined(ESP8266)
     Serial.print("Memory loss after sending:");
     Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
     freeMemory = ESP.getFreeHeap();
@@ -1780,7 +1807,7 @@ void sendBuffer(T& client, uint8_t chunkSize, uint8_t wait_time) {
     resetBuffer();
 
     if (DEBUG_MODE) {
-      #if defined(ESP8266) || defined (ESP32)
+      #if defined(ESP8266)
       Serial.print("Memory loss after buffer reset:");
       Serial.println(freeMemory - ESP.getFreeHeap(),DEC);
       freeMemory = ESP.getFreeHeap();
@@ -1861,7 +1888,7 @@ char *dtostrf (double val, signed char width, unsigned char prec, char *sout) {
 #endif
 
 // Memory debug
-#if defined(ESP8266) || defined(ESP32)
+#if defined(ESP8266)
 void initFreeMemory(){
   freeMemory = ESP.getFreeHeap();
 }
@@ -1943,7 +1970,7 @@ private:
   char * functions_names[NUMBER_FUNCTIONS];
 
   // Memory debug
-  #if defined(ESP8266) || defined(ESP32)
+  #if defined(ESP8266)
   int freeMemory;
   #endif
 
